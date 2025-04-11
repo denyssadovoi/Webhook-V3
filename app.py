@@ -15,7 +15,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # Flask application
 app = Flask(__name__)
 
-# Webhook endpoint for receiving updates
+# The webhook endpoint that will be called by Telegram when there are updates
 @app.route('/path', methods=['POST'])
 def webhook():
     json_str = request.get_data().decode('UTF-8')
@@ -23,7 +23,7 @@ def webhook():
     bot.process_new_updates([update])
     return 'OK', 200
 
-# Start the Flask server and set webhook
+# Start the Flask web server and set webhook
 if __name__ == "__main__":
     bot.remove_webhook()  # Remove any existing webhooks
     bot.set_webhook(url=WEBHOOK_URL)  # Set the new webhook URL

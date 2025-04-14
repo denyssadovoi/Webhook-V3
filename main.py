@@ -191,10 +191,16 @@ def build_projects_keyboard(projects):
 @rate_limit
 def project_status_handler(message):
     print("Project Status Handler triggered:", message.text)
+    # Make sure the correct section is set
+    if message.chat.id not in user_states:
+        user_states[message.chat.id] = {}
+    user_states[message.chat.id]['section'] = 'project'
+    # Call list_projects directly to show the projects list
     list_projects(message.chat.id)
 
 def list_projects(chat_id):
     try:
+        print(f"list_projects function called for chat_id: {chat_id}")
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range="Projects!A2:F1000"
@@ -229,9 +235,12 @@ def list_projects(chat_id):
                 btn = types.InlineKeyboardButton(text=f"{icon} {row[1]}", callback_data=f"projdetail_{row[0]}")
                 keyboard.add(btn)
             bot.send_message(chat_id, "*All Projects:*", parse_mode="Markdown", reply_markup=keyboard)
+            print(f"Sent project list to chat_id: {chat_id} with {len(projects_list)} projects")
         else:
             bot.send_message(chat_id, "No projects found.", reply_markup=get_project_tracking_menu())
+            print(f"No projects found for chat_id: {chat_id}")
     except Exception as e:
+        print(f"Error in list_projects: {str(e)}")
         bot.send_message(chat_id, f"Error listing projects: {str(e)}", reply_markup=get_project_tracking_menu())
 
 # 2. Show Detailed Project Information & List Associated Tasks
@@ -830,11 +839,14 @@ def handle_start(message):
     print(f"User @{user.username} started. Active chats: {active_chat_ids}") # Debugging
         
     user_states[chat_id] = {
-        "section": None,
+        "section": "project",  # Set section to project immediately
         "action": None
     }
     welcome_text = "Welcome to Project Tracking Bot! This bot helps you manage your projects and tasks in Google Sheets."
-    bot.send_message(chat_id, welcome_text, reply_markup=get_initial_menu())
+    bot.send_message(chat_id, welcome_text, reply_markup=get_project_tracking_menu())
+    
+    # Automatically show the list of projects after starting
+    list_projects(chat_id)
 
 # === Notification Service ===
 def start_notification_service():

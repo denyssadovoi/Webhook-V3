@@ -18,6 +18,10 @@ SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID")     # Google Sheet with Projec
 CREDENTIALS_FILE = os.environ.get("CREDENTIALS_FILE", "credentials.json")
 API_RATE_LIMIT = 60
 
+# === Authorized Telegram Usernames ===
+# Add the Telegram usernames (without '@') who are allowed to use the bot
+AUTHORIZED_USERNAMES = {"Denys_Sadovoi", "jmcn_ie", "username3"}  # REPLACE WITH ACTUAL USERNAMES
+
 # === Available Assignees (for tasks and project assignee) ===
 available_assignees = ["Jonathan", "Stefan", "Denys", "Pierre", "Jimmy"]
 
@@ -75,24 +79,45 @@ def handle_errors(func):
 
 def require_auth(func):
     @wraps(func)
-    def wrapper(message):
-        if message.from_user.username not in AUTHORIZED_USERNAMES:
-            bot.send_message(message.chat.id, f"Sorry, user @{message.from_user.username} is not authorized.")
-            return
-        return func(message)
+    def wrapper(message_or_call):
+        user = None
+        chat_id = None
+        # Check if it's a Message or CallbackQuery
+        if isinstance(message_or_call, types.Message):
+            user = message_or_call.from_user
+            chat_id = message_or_call.chat.id
+        elif isinstance(message_or_call, types.CallbackQuery):
+            user = message_or_call.from_user
+            chat_id = message_or_call.message.chat.id
+        
+        if user and user.username and user.username in AUTHORIZED_USERNAMES:
+            # User is authorized, proceed with the function
+            return func(message_or_call)
+        else:
+            # User is not authorized
+            username_str = f" (@{user.username})" if user and user.username else ""
+            unauthorized_msg = f"Sorry, user {user.first_name}{username_str} (ID: {user.id}) is not authorized to use this bot."
+            if chat_id:
+                try:
+                    bot.send_message(chat_id, unauthorized_msg)
+                except Exception as e:
+                    print(f"Error sending unauthorized message: {e}")
+            else:
+                print(unauthorized_msg) # Log if chat_id not found
+            
+            # For CallbackQuery, answer it to remove the 'loading' state
+            if isinstance(message_or_call, types.CallbackQuery):
+                try:
+                    bot.answer_callback_query(message_or_call.id, "Unauthorized Access")
+                except Exception as e:
+                    print(f"Error answering callback query: {e}")
+            return None # Stop execution
     return wrapper
 
 # === Menus ===
 def get_initial_menu():
     menu = types.ReplyKeyboardMarkup(resize_keyboard=True)
     menu.row("Project Tracking")
-    return menu
-
-def get_document_menu():
-    menu = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    menu.row("🏠 Home", "⬅️ Back", "🔄 Refresh")
-    menu.row("📁 Create Folder", "🔍 Search", "📤 Upload File")
-    menu.row("Back to Main")
     return menu
 
 def get_project_tracking_menu():
@@ -808,7 +833,7 @@ def handle_start(message):
         "section": None,
         "action": None
     }
-    welcome_text = "Welcome! Please choose an option:"
+    welcome_text = "Welcome to Project Tracking Bot! This bot helps you manage your projects and tasks in Google Sheets."
     bot.send_message(chat_id, welcome_text, reply_markup=get_initial_menu())
 
 # === Notification Service ===
